@@ -7,6 +7,7 @@ class Database:
     _instance = None
     _lock = threading.Lock()
     _creation_count = Value('i', 0)
+    _db_path = "/tmp/data.db"
 
     def __new__(cls, *args, **kwargs):
         if not cls._instance:
@@ -17,9 +18,9 @@ class Database:
         return cls._instance
 
     def _init_db(self):
-        if os.path.exists("data.db"):
-            os.remove("data.db")
-        self.conn = sqlite3.connect("data.db", check_same_thread=False)
+        if os.path.exists(Database._db_path):
+            os.remove(Database._db_path)
+        self.conn = sqlite3.connect(Database._db_path, check_same_thread=False)
         self.c = self.conn.cursor()
         self.c.execute(
             """CREATE TABLE IF NOT EXISTS data (id INTEGER PRIMARY KEY, `values` TEXT)"""
@@ -33,7 +34,7 @@ class Database:
             Database._creation_count.value += 1
 
     def get_connection(self):
-        return sqlite3.connect("data.db", check_same_thread=False)
+        return sqlite3.connect(Database._db_path, check_same_thread=False)
 
     def clear_db(self):
         with self.get_connection() as conn:
