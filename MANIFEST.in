@@ -1,0 +1,2 @@
+include painter/static/*
+include painter/templates/*

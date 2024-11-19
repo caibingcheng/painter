@@ -2,9 +2,10 @@ import json
 import socket
 import threading
 from flask import Flask, send_from_directory, Response, g
-from db import db
+from painter.db import db
 import queue
 import time
+import os
 
 app = Flask(__name__)
 input_client_connected = False
@@ -73,11 +74,11 @@ def start_server():
 
 @app.route('/')
 def index():
-    return send_from_directory('.', 'index.html')
+    return send_from_directory(os.path.join(app.root_path, 'templates'), 'index.html')
 
 @app.route('/script.js')
 def script():
-    return send_from_directory('.', 'script.js')
+    return send_from_directory(os.path.join(app.root_path, 'static'), 'script.js')
 
 @app.route('/events')
 def events():
@@ -94,6 +95,9 @@ def events():
                 print("Data iterator exhausted. Resetting.")
     return Response(event_stream(), content_type='text/event-stream')
 
-if __name__ == '__main__':
+def main():
     threading.Thread(target=start_server).start()
-    app.run(debug=True, port=5000, threaded=False)
+    app.run(debug=False, port=5000, threaded=False)
+
+if __name__ == '__main__':
+    main()
