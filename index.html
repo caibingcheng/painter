@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dynamic Data Plot</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@1.0.0"></script>
+    <script src="script.js" defer></script>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden; /* 防止出现滚动条 */
+        }
+        canvas {
+            width: 90%;
+            height: 90%;
+        }
+        #memory-usage, #data-points, #cpu-usage {
+            font-size: 12px;
+            color: gray;
+            position: absolute;
+            bottom: 10px;
+        }
+        #data-points {
+            right: 10px;
+        }
+        #cpu-usage {
+            left: 10px;
+        }
+        #help {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            font-size: 24px;
+            cursor: pointer;
+        }
+        #tooltip {
+            display: none;
+            position: absolute;
+            top: 40px;
+            right: 10px;
+            background-color: white;
+            border: 1px solid gray;
+            padding: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            font-size: 14px;
+            color: black;
+        }
+        #max-data-points-container {
+            position: absolute;
+            top: 10px;
+            left: 50px;
+            font-size: 14px;
+            color: gray;
+        }
+        #max-data-points {
+            width: 150px;
+        }
+        #status-display {
+            position: absolute;
+            top: 10px; /* 调整位置，避免与输入框重叠 */
+            left: 10px;
+            font-size: 14px;
+            color: gray;
+        }
+        #status-light {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background-color: green; /* 初始状态为绿色 */
+            display: inline-block;
+        }
+        #mouse-coordinates {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="status-display">
+        <span id="status-light"></span>
+    </div>
+    <div id="max-data-points-container">
+        Max Data Points: <input type="number" id="max-data-points" min="1" />
+    </div>
+    <canvas id="myChart"></canvas>
+    <div id="memory-usage">Memory usage: calculating...</div>
+    <div id="data-points">Total data points: 0</div>
+    <div id="cpu-usage">CPU usage: calculating...</div>
+    <div id="mouse-coordinates">Mouse coordinates: (0, 0)</div>
+    <div id="help">?</div>
+    <div id="tooltip">
+        <p><strong>键盘操作:</strong></p>
+        <p>A / 左箭头: 向左平移</p>
+        <p>D / 右箭头: 向右平移</p>
+        <p>P: 暂停/恢复更新</p>
+        <p>R: 重置缩放</p>
+        <p><strong>鼠标操作:</strong></p>
+        <p>拖动: 平移图表</p>
+        <p>滚轮: 缩放图表</p>
+    </div>
+    <script>
+        const help = document.getElementById('help');
+        const tooltip = document.getElementById('tooltip');
+
+        help.addEventListener('mouseover', () => {
+            tooltip.style.display = 'block';
+        });
+
+        help.addEventListener('mouseout', () => {
+            tooltip.style.display = 'none';
+        });
+    </script>
+</body>
+</html>
