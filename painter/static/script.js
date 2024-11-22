@@ -16,7 +16,7 @@ function updateStatusDisplay() {
     }
 }
 
-maxDataPointsInput.addEventListener('change', function() {
+maxDataPointsInput.addEventListener('change', function () {
     const newValue = parseInt(this.value, 10);
     if (!isNaN(newValue) && newValue > 0) {
         maxDataPoints = newValue;
@@ -63,7 +63,7 @@ const myChart = new Chart(ctx, {
                         enabled: true,
                     },
                     mode: 'x',
-                    onZoomComplete: function() {
+                    onZoomComplete: function () {
                         updateYAxisRange();
                     }
                 }
@@ -73,7 +73,6 @@ const myChart = new Chart(ctx, {
 });
 
 const eventSource = new EventSource('/events');
-let buffer = [];
 const bufferSize = 50;
 let animationFrameId;
 let isUserPanning = false;
@@ -101,47 +100,29 @@ eventSource.onmessage = function (event) {
     dataArray.forEach(data => {
         const [x, y] = data.split(' ').map(parseFloat);
         if (!isNaN(x) && !isNaN(y)) {
-            buffer.push({ x: x, y: y });
+            myChart.data.labels.push(x);
+            myChart.data.datasets[0].data.push(y);
         }
     });
-
-    if (buffer.length >= bufferSize) {
-        buffer.forEach(point => {
-            myChart.data.labels.push(point.x);
-            myChart.data.datasets[0].data.push(point.y);
-        });
-        buffer = [];
-        if (!animationFrameId && !isUserPanning && !isPaused) {
-            animationFrameId = requestAnimationFrame(updateChart);
-        }
-        updateDataPoints();
+    if (!animationFrameId && !isUserPanning && !isPaused) {
+        animationFrameId = requestAnimationFrame(updateChart);
     }
+    updateDataPoints();
 };
 
 function updateChart() {
     const totalDataPoints = myChart.data.labels.length;
-    if (totalDataPoints > maxDataPoints) {
-        const start = totalDataPoints - maxDataPoints;
-        myChart.options.scales.x.min = myChart.data.labels[start];
-        myChart.options.scales.x.max = myChart.data.labels[totalDataPoints - 1];
+    const viewDataLength = Math.min(myChart.data.labels.length, maxDataPoints);
+    const start = totalDataPoints - viewDataLength;
+    myChart.options.scales.x.min = myChart.data.labels[start];
+    myChart.options.scales.x.max = myChart.data.labels[totalDataPoints - 1];
 
-        // 计算可视区域内的数据的最小值和最大值
-        const visibleData = myChart.data.datasets[0].data.slice(start, totalDataPoints);
-        const minY = Math.min(...visibleData);
-        const maxY = Math.max(...visibleData);
-        myChart.options.scales.y.min = minY;
-        myChart.options.scales.y.max = maxY;
-    } else {
-        myChart.options.scales.x.min = undefined;
-        myChart.options.scales.x.max = undefined;
-        myChart.options.scales.y.min = undefined;
-        myChart.options.scales.y.max = undefined;
-    }
     myChart.update('none');
+    updateYAxisRange(); // 确保在更新图表数据后调用
     animationFrameId = null;
 }
 
-eventSource.onerror = function(error) {
+eventSource.onerror = function (error) {
     console.log('EventSource error:', error);
 };
 
@@ -153,7 +134,7 @@ let selection = {
     data: []
 };
 
-document.addEventListener('keydown', function(event) {
+document.addEventListener('keydown', function (event) {
     if (event.key === 'a' || event.key === 'A' || event.key === 'ArrowLeft') {
         myChart.pan({ x: 50, y: 0 });
         updateYAxisRange();
@@ -191,7 +172,7 @@ document.addEventListener('keydown', function(event) {
     updateStatusDisplay();
 });
 
-document.addEventListener('keyup', function(event) {
+document.addEventListener('keyup', function (event) {
     if (event.key === 'z' || event.key === 'Z') {
         selection.isSelecting = false;
         selection.start = null;
@@ -224,7 +205,7 @@ let selectionMask = {
     isVisible: false,
     startX: null,
     endX: null,
-    draw: function(ctx) {
+    draw: function (ctx) {
         if (this.isVisible && this.startX !== null && this.endX !== null) {
             ctx.save();
             ctx.fillStyle = 'rgba(0, 0, 255, 0.3)';
@@ -234,7 +215,7 @@ let selectionMask = {
     }
 };
 
-ctx.canvas.addEventListener('mousedown', function(event) {
+ctx.canvas.addEventListener('mousedown', function (event) {
     isDragging = true;
     startX = event.clientX;
     isUserPanning = true;
@@ -250,7 +231,7 @@ ctx.canvas.addEventListener('mousedown', function(event) {
     }
 });
 
-ctx.canvas.addEventListener('mousemove', function(event) {
+ctx.canvas.addEventListener('mousemove', function (event) {
     if (isDragging && !selection.isSelecting) {
         const deltaX = event.clientX - startX;
         myChart.pan({ x: deltaX, y: 0 });
@@ -287,7 +268,7 @@ ctx.canvas.addEventListener('mousemove', function(event) {
 let maxY, minY, avgY;
 let sigma1, sigma2, sigma3;
 
-ctx.canvas.addEventListener('mouseup', function(event) {
+ctx.canvas.addEventListener('mouseup', function (event) {
     isDragging = false;
     isUserPanning = false;
     updateYAxisRange();
@@ -419,7 +400,7 @@ ctx.canvas.addEventListener('mouseup', function(event) {
     }
 });
 
-ctx.canvas.addEventListener('mouseleave', function() {
+ctx.canvas.addEventListener('mouseleave', function () {
     isDragging = false;
     isUserPanning = false;
     updateYAxisRange();
@@ -454,27 +435,21 @@ function updateCPUUsage() {
 setInterval(updateCPUUsage, 1000); // 每秒更新一次 CPU 使用率
 
 function updateYAxisRange() {
-    const totalDataPoints = myChart.data.labels.length;
-    if (totalDataPoints > maxDataPoints) {
-        const start = myChart.options.scales.x.min;
-        const end = myChart.options.scales.x.max;
-        const visibleData = myChart.data.datasets[0].data.filter((_, index) => {
-            const xValue = myChart.data.labels[index];
-            return xValue >= start && xValue <= end;
-        });
-        const minY = Math.min(...visibleData);
-        const maxY = Math.max(...visibleData);
-        const gap = maxY - minY;
-        let padding = (maxY - minY) * 0.05; // 预留5%的空余
-        myChart.options.scales.y.min = minY - padding;
-        myChart.options.scales.y.max = maxY + padding;
-        if (gap >= 5) {
-            myChart.options.scales.y.min = Math.floor(myChart.options.scales.y.min);
-            myChart.options.scales.y.max = Math.ceil(myChart.options.scales.y.max);
-        }
-    } else {
-        myChart.options.scales.y.min = undefined;
-        myChart.options.scales.y.max = undefined;
+    const start = myChart.options.scales.x.min;
+    const end = myChart.options.scales.x.max;
+    const visibleData = myChart.data.datasets[0].data.filter((_, index) => {
+        const xValue = myChart.data.labels[index];
+        return xValue >= start && xValue <= end;
+    });
+    const minY = Math.min(...visibleData);
+    const maxY = Math.max(...visibleData);
+    const gap = maxY - minY;
+    const padding = (maxY - minY) * 0.05; // 预留5%的空余
+    myChart.options.scales.y.min = minY - padding;
+    myChart.options.scales.y.max = maxY + padding;
+    if (gap >= 5) {
+        myChart.options.scales.y.min = Math.floor(myChart.options.scales.y.min);
+        myChart.options.scales.y.max = Math.ceil(myChart.options.scales.y.max);
     }
     myChart.update('none');
 }
@@ -482,7 +457,7 @@ function updateYAxisRange() {
 const crosshair = {
     x: null,
     y: null,
-    draw: function(ctx) {
+    draw: function (ctx) {
         if (this.x !== null && this.y !== null) {
             ctx.save();
             ctx.beginPath();
@@ -511,7 +486,7 @@ const crosshair = {
 
 const mouseCoordinatesDisplay = document.getElementById('mouse-coordinates');
 
-ctx.canvas.addEventListener('mousemove', function(event) {
+ctx.canvas.addEventListener('mousemove', function (event) {
     const rect = ctx.canvas.getBoundingClientRect();
     const scaleX = ctx.canvas.width / rect.width;
     const scaleY = ctx.canvas.height / rect.height;
@@ -528,7 +503,7 @@ ctx.canvas.addEventListener('mousemove', function(event) {
     myChart.draw();
 });
 
-ctx.canvas.addEventListener('mouseleave', function() {
+ctx.canvas.addEventListener('mouseleave', function () {
     crosshair.x = null;
     crosshair.y = null;
     mouseCoordinatesDisplay.textContent = `Mouse coordinates: (0, 0)`;
@@ -537,7 +512,7 @@ ctx.canvas.addEventListener('mouseleave', function() {
 
 Chart.register({
     id: 'crosshair',
-    afterDraw: function(chart) {
+    afterDraw: function (chart) {
         crosshair.draw(chart.ctx);
         selectionMask.draw(chart.ctx);
 
