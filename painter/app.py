@@ -132,6 +132,15 @@ def events():
     return Response(event_stream(), content_type="text/event-stream")
 
 
+@app.route("/save_data", methods=["POST"])
+def save_data():
+    data = request.json
+    with open("saved_data.txt", "a") as f:
+        for point in data:
+            f.write(f"{point['x']} {point['y']}\n")
+    return "Data saved", 200
+
+
 @app.route("/shutdown", methods=["POST"])
 def shutdown():
     def shutdown_server():

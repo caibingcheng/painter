@@ -92,6 +92,11 @@ let animationFrameId;
 let isUserPanning = false;
 let isPaused = false;
 
+function generateFileName() {
+    const date_time = new Date().toISOString().replace(/:/g, '-').replace(/\./g, '-');
+    return "saved_data_" + date_time + ".txt";
+}
+
 function resetChart() {
     isPaused = false;
     myChart.data.labels = [];
@@ -102,6 +107,30 @@ function resetChart() {
     myChart.update('none');
     updateDataPoints(); // 重置统计信息
     console.log('Chart reset');
+}
+
+const saveDataButton = document.getElementById('save-data');
+saveDataButton.addEventListener('click', function () {
+    saveAllDataToFile();
+});
+
+function saveAllDataToFile() {
+    if (myChart.data.labels.length === 0) {
+        alert('没有数据可保存');
+        return;
+    }
+    const data = myChart.data.labels.map((label, index) => {
+        return `${label} ${myChart.data.datasets[0].data[index]}\n`;
+    }).join('');
+    const blob = new Blob([data], { type: 'application/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = generateFileName();
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
 }
 
 eventSource.onmessage = function (event) {
@@ -506,7 +535,7 @@ const crosshair = {
             const xValue = myChart.scales.x.getValueForPixel(this.x).toFixed(2);
             ctx.fillText(`x: ${xValue}`, this.x + 5, 12);
 
-            // 显示 y ���标
+            // 显示 y 坐标
             const yValue = myChart.scales.y.getValueForPixel(this.y).toFixed(2);
             ctx.fillText(`y: ${yValue}`, ctx.canvas.width - ctx.measureText(`y: ${yValue}`).width - 5, this.y - 5);
 
@@ -601,3 +630,50 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 });
+
+const fileInput = document.getElementById('file-input');
+const dropZone = document.getElementById('drop-zone');
+
+dropZone.addEventListener('click', () => fileInput.click());
+
+fileInput.addEventListener('change', handleFile);
+dropZone.addEventListener('dragover', (event) => {
+    event.preventDefault();
+    dropZone.classList.add('dragover');
+});
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', (event) => {
+    event.preventDefault();
+    dropZone.classList.remove('dragover');
+    const files = event.dataTransfer.files;
+    if (files.length > 0) {
+        handleFile({ target: { files } });
+    }
+});
+
+function handleFile(event) {
+    const file = event.target.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = function (e) {
+            const content = e.target.result;
+            const data = parseFileContent(content);
+            renderData(data);
+        };
+        reader.readAsText(file);
+    }
+}
+
+function parseFileContent(content) {
+    const lines = content.split('\n');
+    return lines.map(line => {
+        const [x, y] = line.split(' ').map(parseFloat);
+        return { x, y };
+    }).filter(point => !isNaN(point.x) && !isNaN(point.y));
+}
+
+function renderData(data) {
+    myChart.data.labels = data.map(point => point.x);
+    myChart.data.datasets[0].data = data.map(point => point.y);
+    updateChart();
+}

@@ -18,17 +18,28 @@
         </div>
         <div id="live-status"></div>
     </div>
-    <div id="close-on-disconnect-container">
-        Close on Disconnect: <input type="checkbox" id="close-on-disconnect" />
-    </div>
-    <div id="max-data-points-container">
-        Max Data Points: <input type="number" id="max-data-points" min="1" />
+    <div id="settings">
+        <div id="max-data-points-container">
+            Max Data Points: <input type="number" id="max-data-points" min="1" />
+        </div>
+        <div id="close-on-disconnect-container">
+            Close on Disconnect: <input type="checkbox" id="close-on-disconnect" />
+        </div>
+        <div id="save-data-container">
+            <button id="save-data">Save Data</button>
+        </div>
+        <div id="file-input-container">
+            <input type="file" id="file-input" style="display: none;" />
+            <div id="drop-zone">Drag and drop a file here or click to upload</div>
+        </div>
     </div>
     <canvas id="myChart"></canvas>
-    <div id="memory-usage">Memory usage: calculating...</div>
-    <div id="data-points">Total data points: 0</div>
-    <div id="cpu-usage">CPU usage: calculating...</div>
-    <div id="mouse-coordinates">Mouse coordinates: (0, 0)</div>
+    <div id="information">
+        <div id="data-points">Total data points: 0</div>
+        <div id="memory-usage">Memory usage: calculating...</div>
+        <div id="cpu-usage">CPU usage: calculating...</div>
+        <div id="mouse-coordinates">Mouse coordinates: (0, 0)</div>
+    </div>
     <div id="help">?</div>
     <div id="tooltip">
         <p><strong>键盘操作:</strong></p>
