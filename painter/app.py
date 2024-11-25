@@ -30,6 +30,11 @@ class DataStore:
             DataStore.data_notifier_.notify_all()
 
     @staticmethod
+    def copy_data():
+        with DataStore.data_lock_:
+            return DataStore.data_store_.copy()
+
+    @staticmethod
     def data():
         last_index = 0
         version = DataStore.data_version_
@@ -132,24 +137,19 @@ def events():
     return Response(event_stream(), content_type="text/event-stream")
 
 
-@app.route("/save_data", methods=["POST"])
-def save_data():
-    data = request.json
-    with open("saved_data.txt", "a") as f:
-        for point in data:
-            f.write(f"{point['x']} {point['y']}\n")
-    return "Data saved", 200
+@app.route("/download")
+def download():
+    def generate():
+        for data in DataStore.copy_data():
+            yield f"{data}\n"
+
+    return Response(generate(), content_type="text/plain")
 
 
 @app.route("/shutdown", methods=["POST"])
 def shutdown():
-    def shutdown_server():
-        func = request.environ.get("werkzeug.server.shutdown")
-        if func is None:
-            raise RuntimeError("Not running with the Werkzeug Server")
-        func()
-
-    shutdown_server()
+    print("Shutting down server...")
+    os._exit(0)
     return "Server shutting down..."
 
 
@@ -171,7 +171,7 @@ def main():
 
     signal.signal(signal.SIGINT, signal_handler)
 
-    app.run(debug=False, port=args.web_port, threaded=False)
+    app.run(debug=False, port=args.web_port, threaded=True)
 
 
 if __name__ == "__main__":

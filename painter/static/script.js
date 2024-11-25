@@ -116,21 +116,27 @@ saveDataButton.addEventListener('click', function () {
 
 function saveAllDataToFile() {
     if (myChart.data.labels.length === 0) {
-        alert('没有数据可保存');
+        console.error('No data to save');
         return;
     }
-    const data = myChart.data.labels.map((label, index) => {
-        return `${label} ${myChart.data.datasets[0].data[index]}\n`;
-    }).join('');
-    const blob = new Blob([data], { type: 'application/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = generateFileName();
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    fetch('/download')
+        .then(response => response.text())
+        .then(data => {
+            if (data === 'No data') {
+                console.error('No data to save');
+                return;
+            }
+            const blob = new Blob([data], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = generateFileName();
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        })
+        .catch(error => console.error('Error downloading data:', error));
 }
 
 eventSource.onmessage = function (event) {
@@ -223,6 +229,10 @@ document.addEventListener('keydown', function (event) {
         selection.start = null;
         selection.end = null;
         selection.data = [];
+    } else if (event.ctrlKey && event.key === 'c') {
+        fetch('/shutdown', { method: 'POST' })
+            .then(() => window.close())
+            .catch(err => console.error('Error shutting down server:', err));
     }
     updateStatusIndicator();
 });
