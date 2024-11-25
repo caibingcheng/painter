@@ -1,9 +1,11 @@
 import json
 import socket
 import threading
-from flask import Flask, send_from_directory, Response
+from flask import Flask, Response, request, render_template
 import os
 import argparse
+import webbrowser  # 添加此行
+import signal  # 添加此行
 
 app = Flask(__name__)
 
@@ -114,12 +116,7 @@ class DataServer:
 
 @app.route("/")
 def index():
-    return send_from_directory(os.path.join(app.root_path, "templates"), "index.html")
-
-
-@app.route("/script.js")
-def script():
-    return send_from_directory(os.path.join(app.root_path, "static"), "script.js")
+    return render_template("index.html")
 
 
 @app.route("/events")
@@ -135,6 +132,18 @@ def events():
     return Response(event_stream(), content_type="text/event-stream")
 
 
+@app.route("/shutdown", methods=["POST"])
+def shutdown():
+    def shutdown_server():
+        func = request.environ.get("werkzeug.server.shutdown")
+        if func is None:
+            raise RuntimeError("Not running with the Werkzeug Server")
+        func()
+
+    shutdown_server()
+    return "Server shutting down..."
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--web-port", type=int, default=5000)
@@ -142,6 +151,17 @@ def main():
     args = parser.parse_args()
 
     threading.Thread(target=DataServer.start, args=(args.data_port,)).start()
+
+    # 启动内置浏览器
+    webbrowser.open(f"http://localhost:{args.web_port}/")
+
+    # 添加对SIGINT信号的处理
+    def signal_handler(sig, frame):
+        print("Exiting...")
+        os._exit(0)
+
+    signal.signal(signal.SIGINT, signal_handler)
+
     app.run(debug=False, port=args.web_port, threaded=False)
 
 

@@ -3,16 +3,19 @@ let maxDataPoints = 100; // 修改为 let 以便后续修改
 const maxDataPointsInput = document.getElementById('max-data-points');
 maxDataPointsInput.value = maxDataPoints;
 
-const statusDisplay = document.getElementById('status-display');
+const statusIndicator = document.getElementById('status-indicator');
+const statusText = document.getElementById('status-text');
 
-function updateStatusDisplay() {
-    const statusLight = document.getElementById('status-light');
+function updateStatusIndicator() {
     if (isPaused) {
-        statusLight.style.backgroundColor = 'red';
+        statusIndicator.style.backgroundColor = 'red';
+        statusText.textContent = '暂停';
     } else if (selection.isSelecting) {
-        statusLight.style.backgroundColor = 'blue'; // 选择模式时显示蓝色
+        statusIndicator.style.backgroundColor = 'blue'; // 选择模式时显示蓝色
+        statusText.textContent = '选择模式';
     } else {
-        statusLight.style.backgroundColor = 'green';
+        statusIndicator.style.backgroundColor = 'green';
+        statusText.textContent = '正常';
     }
 }
 
@@ -22,7 +25,7 @@ maxDataPointsInput.addEventListener('change', function () {
         maxDataPoints = newValue;
         updateChart(); // 调整图表而不清空数据
     }
-    updateStatusDisplay();
+    updateStatusIndicator();
 });
 
 const myChart = new Chart(ctx, {
@@ -71,6 +74,17 @@ const myChart = new Chart(ctx, {
         }
     }
 });
+
+const liveStatus = document.getElementById('live-status');
+
+function updateLiveStatus(isConnected) {
+    if (isConnected) {
+        liveStatus.classList.add('live');
+    } else {
+        liveStatus.classList.remove('live');
+        liveStatus.style.backgroundColor = 'gray';
+    }
+}
 
 const eventSource = new EventSource('/events');
 const bufferSize = 50;
@@ -122,8 +136,20 @@ function updateChart() {
     animationFrameId = null;
 }
 
+const closeOnDisconnectCheckbox = document.getElementById('close-on-disconnect');
+
+eventSource.onopen = function () {
+    updateLiveStatus(true);
+};
+
 eventSource.onerror = function (error) {
     console.log('EventSource error:', error);
+    updateLiveStatus(false);
+    // close the connection
+    eventSource.close();
+    if (closeOnDisconnectCheckbox.checked) {
+        window.close();
+    }
 };
 
 // 添加键盘事件监听器
@@ -169,7 +195,7 @@ document.addEventListener('keydown', function (event) {
         selection.end = null;
         selection.data = [];
     }
-    updateStatusDisplay();
+    updateStatusIndicator();
 });
 
 document.addEventListener('keyup', function (event) {
@@ -195,7 +221,7 @@ document.addEventListener('keyup', function (event) {
         );
         myChart.update('none');
     }
-    updateStatusDisplay();
+    updateStatusIndicator();
 });
 
 let isDragging = false;
@@ -255,13 +281,10 @@ ctx.canvas.addEventListener('mousemove', function (event) {
     const mouseX = (event.clientX - rect.left) * scaleX;
     const mouseY = (event.clientY - rect.top) * scaleY;
 
-    const xValue = myChart.scales.x.getValueForPixel(mouseX);
-    const yValue = myChart.scales.y.getValueForPixel(mouseY);
-
     crosshair.x = mouseX;
     crosshair.y = mouseY;
 
-    mouseCoordinatesDisplay.textContent = `Mouse coordinates: (${xValue.toFixed(2)}, ${yValue.toFixed(2)})`;
+    mouseCoordinatesDisplay.textContent = `Mouse coordinates: (${mouseX.toFixed(2)}, ${mouseY.toFixed(2)})`;
     myChart.draw();
 });
 
@@ -441,15 +464,23 @@ function updateYAxisRange() {
         const xValue = myChart.data.labels[index];
         return xValue >= start && xValue <= end;
     });
-    const minY = Math.min(...visibleData);
-    const maxY = Math.max(...visibleData);
-    const gap = maxY - minY;
-    const padding = (maxY - minY) * 0.05; // 预留5%的空余
-    myChart.options.scales.y.min = minY - padding;
-    myChart.options.scales.y.max = maxY + padding;
-    if (gap >= 5) {
-        myChart.options.scales.y.min = Math.floor(myChart.options.scales.y.min);
-        myChart.options.scales.y.max = Math.ceil(myChart.options.scales.y.max);
+    if (visibleData.length === 0) {
+        myChart.options.scales.y.min = 0;
+        myChart.options.scales.y.max = 1;
+    } else {
+        const minY = Math.min(...visibleData);
+        const maxY = Math.max(...visibleData);
+        const gap = maxY - minY;
+        let padding = (maxY - minY) * 0.05; // 预留5%的空余
+        if (padding === 0) {
+            padding = maxY * 0.05; // 如果最大值和最小值相等，则预留5%的空余
+        }
+        myChart.options.scales.y.min = minY - padding;
+        myChart.options.scales.y.max = maxY + padding;
+        if (gap >= 5) {
+            myChart.options.scales.y.min = Math.floor(myChart.options.scales.y.min);
+            myChart.options.scales.y.max = Math.ceil(myChart.options.scales.y.max);
+        }
     }
     myChart.update('none');
 }
@@ -475,7 +506,7 @@ const crosshair = {
             const xValue = myChart.scales.x.getValueForPixel(this.x).toFixed(2);
             ctx.fillText(`x: ${xValue}`, this.x + 5, 12);
 
-            // 显示 y 坐标
+            // 显示 y ���标
             const yValue = myChart.scales.y.getValueForPixel(this.y).toFixed(2);
             ctx.fillText(`y: ${yValue}`, ctx.canvas.width - ctx.measureText(`y: ${yValue}`).width - 5, this.y - 5);
 
@@ -549,4 +580,24 @@ Chart.register({
             ctx.restore();
         }
     }
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+    const closeOnDisconnectCheckbox = document.getElementById('close-on-disconnect');
+    const savedState = localStorage.getItem('closeOnDisconnect');
+    if (savedState !== null) {
+        closeOnDisconnectCheckbox.checked = JSON.parse(savedState);
+    }
+
+    closeOnDisconnectCheckbox.addEventListener('change', () => {
+        localStorage.setItem('closeOnDisconnect', closeOnDisconnectCheckbox.checked);
+    });
+
+    document.addEventListener('keydown', (event) => {
+        if (event.ctrlKey && event.key === 'c') {
+            fetch('/shutdown', { method: 'POST' })
+                .then(() => window.close())
+                .catch(err => console.error('Error shutting down server:', err));
+        }
+    });
 });
