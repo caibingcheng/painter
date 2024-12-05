@@ -208,13 +208,28 @@ eventSource.onmessage = function (event) {
     updateDataPoints();
 };
 
-function updateChart() {
-    const totalDataPoints = myChart.data.labels.length;
-    const viewDataLength = Math.min(myChart.data.labels.length, maxDataPoints);
-    const start = totalDataPoints - viewDataLength;
-    myChart.options.scales.x.min = myChart.data.labels[start];
-    myChart.options.scales.x.max = myChart.data.labels[totalDataPoints - 1];
+const fullModeCheckbox = document.getElementById('full-mode');
 
+fullModeCheckbox.addEventListener('change', function () {
+    if (this.checked) {
+        const xGap = xLabelsMax - xLabelsMin;
+        const xPadding = xGap * 0.05;
+        myChart.options.scales.x.min = xLabelsMin - xPadding;
+        myChart.options.scales.x.max = xLabelsMax + xPadding;
+    } else {
+        updateChart();
+    }
+    myChart.update('none');
+});
+
+function updateChart() {
+    if (!fullModeCheckbox.checked) {
+        const totalDataPoints = myChart.data.labels.length;
+        const viewDataLength = Math.min(myChart.data.labels.length, maxDataPoints);
+        const start = totalDataPoints - viewDataLength;
+        myChart.options.scales.x.min = myChart.data.labels[start];
+        myChart.options.scales.x.max = myChart.data.labels[totalDataPoints - 1];
+    }
     myChart.update('none');
     updateYAxisRange(); // 确保在更新图表数据后调用
     animationFrameId = null;
@@ -253,17 +268,24 @@ document.addEventListener('keydown', function (event) {
         updateYAxisRange();
     } else if (event.key === 'r' || event.key === 'R') {
         isPaused = false;
-        let scaleXMin = myChart.options.scales.x.min;
-        let scaleXMax = myChart.options.scales.x.max;
-        if (scaleXMin < xLabelsMin) {
-            scaleXMin = xLabelsMin;
+        if (fullModeCheckbox.checked) {
+            const xGap = xLabelsMax - xLabelsMin;
+            const xPadding = xGap * 0.05;
+            myChart.options.scales.x.min = xLabelsMin - xPadding;
+            myChart.options.scales.x.max = xLabelsMax + xPadding;
+        } else {
+            let scaleXMin = myChart.options.scales.x.min;
+            let scaleXMax = myChart.options.scales.x.max;
+            if (scaleXMin < xLabelsMin) {
+                scaleXMin = xLabelsMin;
+            }
+            if (scaleXMax > xLabelsMax) {
+                scaleXMax = xLabelsMax;
+            }
+            const scaleXMid = (scaleXMin + scaleXMax) / 2;
+            myChart.options.scales.x.min = scaleXMid - maxDataPoints / 2;
+            myChart.options.scales.x.max = scaleXMid + maxDataPoints / 2;
         }
-        if (scaleXMax > xLabelsMax) {
-            scaleXMax = xLabelsMax;
-        }
-        const scaleXMid = (scaleXMin + scaleXMax) / 2;
-        myChart.options.scales.x.min = scaleXMid - maxDataPoints / 2;
-        myChart.options.scales.x.max = scaleXMid + maxDataPoints / 2;
         myChart.update('none');
         updateYAxisRange();
     } else if (event.key === 'p' || event.key === 'P') {
@@ -546,30 +568,42 @@ function updateCPUUsage() {
 setInterval(updateCPUUsage, 1000); // 每秒更新一次 CPU 使用率
 
 function updateYAxisRange() {
-    const start = myChart.options.scales.x.min;
-    const end = myChart.options.scales.x.max;
-    const visibleData = myChart.data.datasets.flatMap(dataset =>
-        dataset.data.filter((point, index) => {
-            const xValue = myChart.data.labels[index];
-            return xValue >= start && xValue <= end;
-        })
-    );
-    if (visibleData.length === 0) {
-        myChart.options.scales.y.min = 0;
-        myChart.options.scales.y.max = 1;
-    } else {
-        const minY = Math.min(...visibleData.map(point => point.y));
-        const maxY = Math.max(...visibleData.map(point => point.y));
-        const gap = maxY - minY;
-        let padding = (maxY - minY) * 0.05; // 预留5%的空余
+    if (fullModeCheckbox.checked) {
+        const globalMinY = Math.min(...myChart.data.datasets.flatMap(dataset => dataset.data.map(point => point.y)));
+        const globalMaxY = Math.max(...myChart.data.datasets.flatMap(dataset => dataset.data.map(point => point.y)));
+        const gap = globalMaxY - globalMinY;
+        let padding = gap * 0.05; // 预留5%的空余
         if (padding === 0) {
-            padding = maxY * 0.05; // 如果最大值和最小值相等，则预留5%的空余
+            padding = globalMaxY * 0.05; // 如果最大值和最小值相等，则预留5%的空余
         }
-        myChart.options.scales.y.min = minY - padding;
-        myChart.options.scales.y.max = maxY + padding;
-        if (gap >= 5) {
-            myChart.options.scales.y.min = Math.floor(myChart.options.scales.y.min);
-            myChart.options.scales.y.max = Math.ceil(myChart.options.scales.y.max);
+        myChart.options.scales.y.min = globalMinY - padding;
+        myChart.options.scales.y.max = globalMaxY + padding;
+    } else {
+        const start = myChart.options.scales.x.min;
+        const end = myChart.options.scales.x.max;
+        const visibleData = myChart.data.datasets.flatMap(dataset =>
+            dataset.data.filter((point, index) => {
+                const xValue = myChart.data.labels[index];
+                return xValue >= start && xValue <= end;
+            })
+        );
+        if (visibleData.length === 0) {
+            myChart.options.scales.y.min = 0;
+            myChart.options.scales.y.max = 1;
+        } else {
+            const minY = Math.min(...visibleData.map(point => point.y));
+            const maxY = Math.max(...visibleData.map(point => point.y));
+            const gap = maxY - minY;
+            let padding = gap * 0.05; // 预留5%的空余
+            if (padding === 0) {
+                padding = maxY * 0.05; // 如果最大值和最小值相等，则预留5%的空余
+            }
+            myChart.options.scales.y.min = minY - padding;
+            myChart.options.scales.y.max = maxY + padding;
+            if (gap >= 5) {
+                myChart.options.scales.y.min = Math.floor(myChart.options.scales.y.min);
+                myChart.options.scales.y.max = Math.ceil(myChart.options.scales.y.max);
+            }
         }
     }
     myChart.update('none');
@@ -704,6 +738,32 @@ document.addEventListener('DOMContentLoaded', () => {
                 .then(() => window.close())
                 .catch(err => console.error('Error shutting down server:', err));
         }
+    });
+
+    const fullModeCheckbox = document.getElementById('full-mode');
+    const savedFullModeState = localStorage.getItem('fullMode');
+    if (savedFullModeState !== null) {
+        fullModeCheckbox.checked = JSON.parse(savedFullModeState);
+        if (fullModeCheckbox.checked) {
+            const xGap = xLabelsMax - xLabelsMin;
+            const xPadding = xGap * 0.05;
+            myChart.options.scales.x.min = xLabelsMin - xPadding;
+            myChart.options.scales.x.max = xLabelsMax + xPadding;
+            myChart.update('none');
+        }
+    }
+
+    fullModeCheckbox.addEventListener('change', () => {
+        localStorage.setItem('fullMode', fullModeCheckbox.checked);
+        if (fullModeCheckbox.checked) {
+            const xGap = xLabelsMax - xLabelsMin;
+            const xPadding = xGap * 0.05;
+            myChart.options.scales.x.min = xLabelsMin - xPadding;
+            myChart.options.scales.x.max = xLabelsMax + xPadding;
+        } else {
+            updateChart();
+        }
+        myChart.update('none');
     });
 });
 

@@ -6,6 +6,7 @@ import os
 import argparse
 import webbrowser  # 添加此行
 import signal  # 添加此行
+import re
 
 app = Flask(__name__)
 
@@ -55,6 +56,10 @@ class DataStore:
                 yield data_batch
         print("Data store modified. Resetting iterator.")
 
+    @staticmethod
+    def extract_numbers(string):
+        return re.findall(r"[-+]?\d*\.\d+|\d+", string)
+
 
 class DataServer:
     client_connected_ = False
@@ -92,8 +97,11 @@ class DataServer:
                 tail = tokens[-1] if not end_with_newline else ""
                 tokens = tokens[:-1] if not end_with_newline else tokens
                 # remove empty strings
+                tokens = [
+                    " ".join(DataStore.extract_numbers(token)) for token in tokens
+                ]
                 tokens = list(filter(None, tokens))
-                tokens = [token.replace(",", " ") for token in tokens]
+                # strip leading and trailing whitespaces
                 with app.app_context():
                     DataStore.insert(tokens)
         except Exception as e:
