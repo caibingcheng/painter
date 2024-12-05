@@ -136,6 +136,29 @@ function saveAllDataToFile() {
         .catch(error => console.error('Error downloading data:', error));
 }
 
+const saveImageButton = document.getElementById('save-image');
+saveImageButton.addEventListener('click', function () {
+    const fileName = prompt("请输入下载图片的文件名：", "chart.png");
+    if (fileName) {
+        const link = document.createElement('a');
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        canvas.width = ctx.canvas.width;
+        canvas.height = ctx.canvas.height;
+
+        // 绘制背景
+        context.fillStyle = 'white';
+        context.fillRect(0, 0, canvas.width, canvas.height);
+
+        // 绘制图表
+        context.drawImage(ctx.canvas, 0, 0);
+
+        link.href = canvas.toDataURL('image/png');
+        link.download = fileName;
+        link.click();
+    }
+});
+
 eventSource.onmessage = function (event) {
     if (event.data === 'reset') {
         resetChart();
