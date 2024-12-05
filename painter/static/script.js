@@ -623,13 +623,28 @@ Chart.register({
 
 document.addEventListener('DOMContentLoaded', () => {
     const closeOnDisconnectCheckbox = document.getElementById('close-on-disconnect');
-    const savedState = localStorage.getItem('closeOnDisconnect');
-    if (savedState !== null) {
-        closeOnDisconnectCheckbox.checked = JSON.parse(savedState);
+    const savedCloseOnDisconnectState = localStorage.getItem('closeOnDisconnect');
+    if (savedCloseOnDisconnectState !== null) {
+        closeOnDisconnectCheckbox.checked = JSON.parse(savedCloseOnDisconnectState);
     }
 
     closeOnDisconnectCheckbox.addEventListener('change', () => {
         localStorage.setItem('closeOnDisconnect', closeOnDisconnectCheckbox.checked);
+    });
+
+    const drawModeSelect = document.getElementById('draw-mode');
+    const savedDrawMode = localStorage.getItem('drawMode');
+    if (savedDrawMode !== null) {
+        drawModeSelect.value = savedDrawMode;
+        myChart.config.type = savedDrawMode;
+        myChart.update();
+    }
+
+    drawModeSelect.addEventListener('change', () => {
+        const selectedMode = drawModeSelect.value;
+        localStorage.setItem('drawMode', selectedMode);
+        myChart.config.type = selectedMode;
+        myChart.update();
     });
 
     document.addEventListener('keydown', (event) => {
@@ -687,3 +702,39 @@ function renderData(data) {
     myChart.data.datasets[0].data = data.map(point => point.y);
     updateChart();
 }
+
+const drawModeCheckbox = document.getElementById('draw-mode');
+let isDrawMode = false;
+
+drawModeCheckbox.addEventListener('change', function () {
+    isDrawMode = this.checked;
+    if (isDrawMode) {
+        myChart.config.type = 'scatter';
+    } else {
+        myChart.config.type = 'line';
+    }
+    myChart.update();
+});
+
+const drawModeSelect = document.getElementById('draw-mode');
+
+drawModeSelect.addEventListener('change', function () {
+    const selectedMode = this.value;
+    myChart.config.type = selectedMode;
+    myChart.update();
+});
+
+ctx.canvas.addEventListener('click', function (event) {
+    if (drawModeSelect.value === 'scatter') {
+        const rect = ctx.canvas.getBoundingClientRect();
+        const scaleX = ctx.canvas.width / rect.width;
+        const scaleY = ctx.canvas.height / rect.height;
+        const mouseX = (event.clientX - rect.left) * scaleX;
+        const mouseY = (event.clientY - rect.top) * scaleY;
+        const xValue = myChart.scales.x.getValueForPixel(mouseX);
+        const yValue = myChart.scales.y.getValueForPixel(mouseY);
+        myChart.data.labels.push(xValue);
+        myChart.data.datasets[0].data.push({ x: xValue, y: yValue });
+        myChart.update();
+    }
+});
