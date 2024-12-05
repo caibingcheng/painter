@@ -92,12 +92,16 @@ function generateFileName() {
     return "saved_data_" + date_time + ".txt";
 }
 
+let xLabelsMin = NaN;
+let xLabelsMax = NaN;
 function resetChart() {
     isPaused = false;
     myChart.data.labels = [];
     myChart.data.datasets.forEach(dataset => {
         dataset.data = [];
     });
+    xLabelsMin = NaN;
+    xLabelsMax = NaN;
     myChart.options.scales.x.min = 0; // 恢复至0点
     myChart.options.scales.x.max = maxDataPoints; // 恢复至初始状态
     myChart.resetZoom(); // 恢复至初始状态
@@ -191,6 +195,12 @@ eventSource.onmessage = function (event) {
             myChart.data.datasets[i - 1].data.push({ x, y });
         }
         myChart.data.labels.push(x);
+        if (isNaN(xLabelsMin) || x < xLabelsMin) {
+            xLabelsMin = x;
+        }
+        if (isNaN(xLabelsMax) || x > xLabelsMax) {
+            xLabelsMax = x;
+        }
     });
     if (!animationFrameId && !isUserPanning && !isPaused) {
         animationFrameId = requestAnimationFrame(updateChart);
@@ -204,7 +214,6 @@ function updateChart() {
     const start = totalDataPoints - viewDataLength;
     myChart.options.scales.x.min = myChart.data.labels[start];
     myChart.options.scales.x.max = myChart.data.labels[totalDataPoints - 1];
-    console.log('Updating chart:', myChart.options.scales.x.min, myChart.options.scales.x.max);
 
     myChart.update('none');
     updateYAxisRange(); // 确保在更新图表数据后调用
@@ -246,13 +255,11 @@ document.addEventListener('keydown', function (event) {
         isPaused = false;
         let scaleXMin = myChart.options.scales.x.min;
         let scaleXMax = myChart.options.scales.x.max;
-        if (scaleXMin < myChart.data.labels[0]) {
-            scaleXMin = myChart.data.labels[0];
-            scaleXMax = scaleXMin + maxDataPoints;
+        if (scaleXMin < xLabelsMin) {
+            scaleXMin = xLabelsMin;
         }
-        if (scaleXMax > myChart.data.labels[myChart.data.labels.length - 1]) {
-            scaleXMax = myChart.data.labels[myChart.data.labels.length - 1];
-            scaleXMin = scaleXMax - maxDataPoints;
+        if (scaleXMax > xLabelsMax) {
+            scaleXMax = xLabelsMax;
         }
         const scaleXMid = (scaleXMin + scaleXMax) / 2;
         myChart.options.scales.x.min = scaleXMid - maxDataPoints / 2;
@@ -700,18 +707,18 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-const fileInput = document.getElementById('file-input');
 const dropZone = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
 
 dropZone.addEventListener('click', () => fileInput.click());
 
 fileInput.addEventListener('change', handleFile);
-dropZone.addEventListener('dragover', (event) => {
+window.addEventListener('dragover', (event) => {
     event.preventDefault();
     dropZone.classList.add('dragover');
 });
-dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
-dropZone.addEventListener('drop', (event) => {
+window.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+window.addEventListener('drop', (event) => {
     event.preventDefault();
     dropZone.classList.remove('dragover');
     const files = event.dataTransfer.files;
@@ -726,7 +733,8 @@ function handleFile(event) {
         const reader = new FileReader();
         reader.onload = function (e) {
             const content = e.target.result;
-            const data = parseFileContent(content);
+            let data = parseFileContent(content);
+            data = data.filter(point => point !== null);
             renderData(data);
         };
         reader.readAsText(file);
@@ -736,31 +744,42 @@ function handleFile(event) {
 function parseFileContent(content) {
     const lines = content.split('\n');
     return lines.map(line => {
-        const [x, y] = line.split(' ').map(parseFloat);
-        return { x, y };
-    }).filter(point => !isNaN(point.x) && !isNaN(point.y));
+        const parts = line.split(' ');
+        const x = parseFloat(parts[0]);
+        if (isNaN(x)) {
+            return null;
+        }
+        const yValues = parts.slice(1).map(parseFloat);
+        const data = { x };
+        if (isNaN(xLabelsMin) || x < xLabelsMin) {
+            xLabelsMin = x;
+        }
+        if (isNaN(xLabelsMax) || x > xLabelsMax) {
+            xLabelsMax = x;
+        }
+        yValues.forEach((y, index) => {
+            data[`y${index + 1}`] = y;
+        });
+        return data;
+    });
 }
 
 function renderData(data) {
     myChart.data.labels = data.map(point => point.x);
-    myChart.data.datasets.forEach(dataset => {
-        dataset.data = [];
-    });
-    data.forEach(point => {
-        for (let i = 1; i < point.length; i++) {
-            if (!myChart.data.datasets[i - 1]) {
-                myChart.data.datasets.push({
-                    label: `Y${i}`,
-                    data: [],
-                    borderColor: `rgba(${Math.floor(Math.random() * 255)}, ${Math.floor(Math.random() * 255)}, ${Math.floor(Math.random() * 255)}, 1)`,
-                    borderWidth: 1,
-                    fill: false
-                });
-            }
-            myChart.data.datasets[i - 1].data.push({ x: point.x, y: point[`y${i}`] });
-        }
+    myChart.data.datasets = [];
+    const yKeys = Object.keys(data[0]).filter(key => key.startsWith('y'));
+    yKeys.forEach((key, index) => {
+        const dataset = {
+            label: key,
+            data: data.map(point => ({ x: point.x, y: point[key] })),
+            borderColor: `rgba(${Math.floor(Math.random() * 255)}, ${Math.floor(Math.random() * 255)}, ${Math.floor(Math.random() * 255)}, 1)`,
+            borderWidth: 1,
+            fill: false
+        };
+        myChart.data.datasets.push(dataset);
     });
     updateChart();
+    updateDataPoints();
 }
 
 const drawModeCheckbox = document.getElementById('draw-mode');
