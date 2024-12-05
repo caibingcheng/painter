@@ -93,6 +93,7 @@ class DataServer:
                 tokens = tokens[:-1] if not end_with_newline else tokens
                 # remove empty strings
                 tokens = list(filter(None, tokens))
+                tokens = [token.replace(",", " ") for token in tokens]
                 with app.app_context():
                     DataStore.insert(tokens)
         except Exception as e:

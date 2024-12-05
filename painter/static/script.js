@@ -32,12 +32,7 @@ const myChart = new Chart(ctx, {
     type: 'line',
     data: {
         labels: [],
-        datasets: [{
-            data: [],
-            borderColor: 'rgba(75, 192, 192, 1)',
-            borderWidth: 1,
-            fill: false
-        }]
+        datasets: []
     },
     options: {
         scales: {
@@ -100,7 +95,9 @@ function generateFileName() {
 function resetChart() {
     isPaused = false;
     myChart.data.labels = [];
-    myChart.data.datasets[0].data = [];
+    myChart.data.datasets.forEach(dataset => {
+        dataset.data = [];
+    });
     myChart.options.scales.x.min = 0; // 恢复至0点
     myChart.options.scales.x.max = maxDataPoints; // 恢复至初始状态
     myChart.resetZoom(); // 恢复至初始状态
@@ -147,11 +144,30 @@ eventSource.onmessage = function (event) {
 
     const dataArray = JSON.parse(event.data);
     dataArray.forEach(data => {
-        const [x, y] = data.split(' ').map(parseFloat);
-        if (!isNaN(x) && !isNaN(y)) {
-            myChart.data.labels.push(x);
-            myChart.data.datasets[0].data.push(y);
+        const xys = data.split(' ').map(parseFloat);
+        const x = xys[0];
+        if (isNaN(x)) {
+            console.error('Invalid data:', data);
+            return;
         }
+        for (let i = 1; i < xys.length; i++) {
+            const y = xys[i];
+            if (isNaN(y)) {
+                console.error('Invalid y:', y);
+                continue;
+            }
+            if (!myChart.data.datasets[i - 1]) {
+                myChart.data.datasets.push({
+                    label: `Y${i}`,
+                    data: [],
+                    borderColor: `rgba(${Math.floor(Math.random() * 255)}, ${Math.floor(Math.random() * 255)}, ${Math.floor(Math.random() * 255)}, 1)`,
+                    borderWidth: 1,
+                    fill: false
+                });
+            }
+            myChart.data.datasets[i - 1].data.push({ x, y });
+        }
+        myChart.data.labels.push(x);
     });
     if (!animationFrameId && !isUserPanning && !isPaused) {
         animationFrameId = requestAnimationFrame(updateChart);
@@ -165,6 +181,7 @@ function updateChart() {
     const start = totalDataPoints - viewDataLength;
     myChart.options.scales.x.min = myChart.data.labels[start];
     myChart.options.scales.x.max = myChart.data.labels[totalDataPoints - 1];
+    console.log('Updating chart:', myChart.options.scales.x.min, myChart.options.scales.x.max);
 
     myChart.update('none');
     updateYAxisRange(); // 确保在更新图表数据后调用
@@ -347,15 +364,17 @@ ctx.canvas.addEventListener('mouseup', function (event) {
             [selection.start, selection.end] = [selection.end, selection.start];
         }
 
-        selection.data = myChart.data.datasets[0].data.filter((point, index) => {
-            const xValue = myChart.data.labels[index];
-            return xValue >= selection.start && xValue <= selection.end;
-        });
+        selection.data = myChart.data.datasets.flatMap(dataset =>
+            dataset.data.filter((point, index) => {
+                const xValue = myChart.data.labels[index];
+                return xValue >= selection.start && xValue <= selection.end;
+            })
+        );
 
         if (selection.data.length > 0) {
-            minY = Math.min(...selection.data);
-            maxY = Math.max(...selection.data);
-            avgY = selection.data.reduce((sum, value) => sum + value, 0) / selection.data.length;
+            minY = Math.min(...selection.data.map(point => point.y));
+            maxY = Math.max(...selection.data.map(point => point.y));
+            avgY = selection.data.reduce((sum, point) => sum + point.y, 0) / selection.data.length;
 
             // 添加最大值线
             myChart.data.datasets = myChart.data.datasets.filter(dataset =>
@@ -406,7 +425,7 @@ ctx.canvas.addEventListener('mouseup', function (event) {
             });
 
             const mean = avgY;
-            const variance = selection.data.reduce((sum, value) => sum + Math.pow(value - mean, 2), 0) / selection.data.length;
+            const variance = selection.data.reduce((sum, point) => sum + Math.pow(point.y - mean, 2), 0) / selection.data.length;
             const stdDev = Math.sqrt(variance);
             sigma1 = [mean - stdDev, mean + stdDev];
             sigma2 = [mean - 2 * stdDev, mean + 2 * stdDev];
@@ -499,16 +518,18 @@ setInterval(updateCPUUsage, 1000); // 每秒更新一次 CPU 使用率
 function updateYAxisRange() {
     const start = myChart.options.scales.x.min;
     const end = myChart.options.scales.x.max;
-    const visibleData = myChart.data.datasets[0].data.filter((_, index) => {
-        const xValue = myChart.data.labels[index];
-        return xValue >= start && xValue <= end;
-    });
+    const visibleData = myChart.data.datasets.flatMap(dataset =>
+        dataset.data.filter((point, index) => {
+            const xValue = myChart.data.labels[index];
+            return xValue >= start && xValue <= end;
+        })
+    );
     if (visibleData.length === 0) {
         myChart.options.scales.y.min = 0;
         myChart.options.scales.y.max = 1;
     } else {
-        const minY = Math.min(...visibleData);
-        const maxY = Math.max(...visibleData);
+        const minY = Math.min(...visibleData.map(point => point.y));
+        const maxY = Math.max(...visibleData.map(point => point.y));
         const gap = maxY - minY;
         let padding = (maxY - minY) * 0.05; // 预留5%的空余
         if (padding === 0) {
@@ -699,7 +720,23 @@ function parseFileContent(content) {
 
 function renderData(data) {
     myChart.data.labels = data.map(point => point.x);
-    myChart.data.datasets[0].data = data.map(point => point.y);
+    myChart.data.datasets.forEach(dataset => {
+        dataset.data = [];
+    });
+    data.forEach(point => {
+        for (let i = 1; i < point.length; i++) {
+            if (!myChart.data.datasets[i - 1]) {
+                myChart.data.datasets.push({
+                    label: `Y${i}`,
+                    data: [],
+                    borderColor: `rgba(${Math.floor(Math.random() * 255)}, ${Math.floor(Math.random() * 255)}, ${Math.floor(Math.random() * 255)}, 1)`,
+                    borderWidth: 1,
+                    fill: false
+                });
+            }
+            myChart.data.datasets[i - 1].data.push({ x: point.x, y: point[`y${i}`] });
+        }
+    });
     updateChart();
 }
 
@@ -724,17 +761,17 @@ drawModeSelect.addEventListener('change', function () {
     myChart.update();
 });
 
-ctx.canvas.addEventListener('click', function (event) {
-    if (drawModeSelect.value === 'scatter') {
-        const rect = ctx.canvas.getBoundingClientRect();
-        const scaleX = ctx.canvas.width / rect.width;
-        const scaleY = ctx.canvas.height / rect.height;
-        const mouseX = (event.clientX - rect.left) * scaleX;
-        const mouseY = (event.clientY - rect.top) * scaleY;
-        const xValue = myChart.scales.x.getValueForPixel(mouseX);
-        const yValue = myChart.scales.y.getValueForPixel(mouseY);
-        myChart.data.labels.push(xValue);
-        myChart.data.datasets[0].data.push({ x: xValue, y: yValue });
-        myChart.update();
-    }
-});
+// ctx.canvas.addEventListener('click', function (event) {
+//     if (drawModeSelect.value === 'scatter') {
+//         const rect = ctx.canvas.getBoundingClientRect();
+//         const scaleX = ctx.canvas.width / rect.width;
+//         const scaleY = ctx.canvas.height / rect.height;
+//         const mouseX = (event.clientX - rect.left) * scaleX;
+//         const mouseY = (event.clientY - rect.top) * scaleY;
+//         const xValue = myChart.scales.x.getValueForPixel(mouseX);
+//         const yValue = myChart.scales.y.getValueForPixel(mouseY);
+//         myChart.data.labels.push(xValue);
+//         myChart.data.datasets[0].data.push({ x: xValue, y: yValue });
+//         myChart.update();
+//     }
+// });
